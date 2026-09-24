@@ -1,9 +1,30 @@
 import { registerSW } from "virtual:pwa-register";
+import { queryClient } from "./query-client.ts";
 import { repairPoisonedPrecache } from "./sw-cache-repair.ts";
 
 export const appUpdateAvailableEvent = "app-update-available";
 
 export function registerServiceWorker() {
+  // On the first visit, requests start before the service worker controls the
+  // page, so they miss its mirror fallback and fail if the API host is
+  // blocked. Once it takes control, redo the failed ones and the ones still
+  // in flight (a blocked connection can take seconds to fail). In-flight ones
+  // are cancelled first: without data yet, a refetch would just reuse the
+  // pending attempt.
+  navigator.serviceWorker?.addEventListener("controllerchange", async () => {
+    const queriesToRedo = queryClient.getQueryCache().findAll({
+      predicate: (query) =>
+        query.state.status === "error" ||
+        query.state.fetchStatus === "fetching",
+    });
+    const filters = {
+      predicate: (query: (typeof queriesToRedo)[number]) =>
+        queriesToRedo.includes(query),
+    };
+    await queryClient.cancelQueries(filters);
+    await queryClient.refetchQueries(filters);
+  });
+
   // Enable offline support via PWA service worker
   const updateServiceWorker = registerSW({
     onNeedRefresh() {

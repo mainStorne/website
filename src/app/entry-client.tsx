@@ -1,3 +1,5 @@
+// Must run before the API clients load: they keep a reference to fetch
+import "./install-mirror-retry.ts";
 import { createRoot } from "react-dom/client";
 import { HelmetProvider } from "@dr.pogodin/react-helmet";
 import { App } from "./app.tsx";
